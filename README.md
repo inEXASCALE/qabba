@@ -1,5 +1,5 @@
 ## Experimental code
-=======================
+----------------------
 
 ### Setup
 The software is configured in Linux, before running the experimental code, please run the commands in the bash
