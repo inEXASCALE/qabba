@@ -23,7 +23,7 @@ The results of Table 2 and Figure 1 can be reproduced by running ``demo.ipynb``
 
 The results of Figure 3 can be reproduced by running ``quantize_err.ipynb``
 
-The result of Figures 4 and 5 can be reproduced by first running ``multithreading.ipynb``, and then the figures are generated via running ``mthread_results.ipynb``
+The results of Figures 4 and 5 can be reproduced by first running ``multithreading.ipynb``, and then the figures are generated via running ``mthread_results.ipynb``
 
 The results of Figures 6 and 7 can be reproduced by ``UCRPP1.ipynb`` and ``UCRPP2.ipynb``, and then the figures are generated via running ``run_variants_profiles.ipynb``
 
