@@ -1,0 +1,30 @@
+tol: ['0.05', '0.10', '0.15', '0.20', '0.25', '0.30', '0.35', '0.40', '0.45', '0.50']
+
+Number of time series: 201761
+Success: 128386
+Failures: 73375
+
+Average compression percentage: 0.06742276574256253
+
+tol used: 
+nan: 73375
+0.05: 109394
+0.1: 4357
+0.15: 2426
+0.2: 2531
+0.25: 2914
+0.30: 2311
+0.35: 1546
+0.4: 1184
+0.45: 993
+0.5: 730
+
+No error: 128386
+Time series too short: 0
+Not enough pieces: 65913
+Data too noisy: 0
+Unknown error: 14872
+ValueError error: 0
+ABBAError error: 0
+fABBAError error: 0
+QABBAError error: 0
