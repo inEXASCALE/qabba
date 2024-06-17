@@ -1,4 +1,4 @@
-## Experimental code for pap487s2
+## Experimental code for QABBA
 ----------------------
 
 ### Setup
