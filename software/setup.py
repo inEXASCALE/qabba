@@ -2,6 +2,8 @@ import logging
 import setuptools
 from distutils.errors import CCompilerError, DistutilsExecError, DistutilsPlatformError
 from setuptools import Extension
+import Cython
+
 
 try:
     from Cython.Distutils import build_ext
@@ -26,11 +28,11 @@ class CustomBuildExtCommand(build_ext):
         
 setup_args = {'name':"qabba",
         'packages':setuptools.find_packages(),
-        'version':"0.0.1",
+        'version':"0.0.3",
         'cmdclass': {'build_ext': CustomBuildExtCommand},
         'install_requires':["numpy>=1.3.0", "scipy>=0.7.0", 
                             "requests", "pandas", 
-                            "scikit-learn", "pychop",
+                            "scikit-learn", "pychop", "cython>=0.27",
                             "joblib>=1.1.1",
                             "matplotlib"],
         'packages':{"qabba"},

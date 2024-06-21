@@ -1,0 +1,17 @@
+README.rst
+setup.py
+qabba/__init__.py
+qabba/agg.py
+qabba/aggmem.pyx
+qabba/comp.py
+qabba/compmem.pyx
+qabba/fkmns.py
+qabba/inverset.py
+qabba/inversetc.pyx
+qabba/qabba.py
+qabba/storage.py
+qabba.egg-info/PKG-INFO
+qabba.egg-info/SOURCES.txt
+qabba.egg-info/dependency_links.txt
+qabba.egg-info/requires.txt
+qabba.egg-info/top_level.txt
