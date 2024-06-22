@@ -2,8 +2,6 @@ import logging
 import setuptools
 from distutils.errors import CCompilerError, DistutilsExecError, DistutilsPlatformError
 from setuptools import Extension
-import Cython
-
 
 try:
     from Cython.Distutils import build_ext
@@ -28,7 +26,7 @@ class CustomBuildExtCommand(build_ext):
         
 setup_args = {'name':"qabba",
         'packages':setuptools.find_packages(),
-        'version':"0.0.3",
+        'version':"0.0.4",
         'cmdclass': {'build_ext': CustomBuildExtCommand},
         'install_requires':["numpy>=1.3.0", "scipy>=0.7.0", 
                             "requests", "pandas", 
@@ -84,5 +82,5 @@ except ext_errors as ext_reason:
     log.warn("The C extension could not be compiled.")
     if 'build_ext' in setup_args['cmdclass']:
         del setup_args['cmdclass']['build_ext']
-    setuptools.setup(setup_requires=["numpy>=1.17.3"], **setup_args)
+    setuptools.setup(setup_requires=["numpy>=1.17.3", "cython>=0.27"], **setup_args)
     

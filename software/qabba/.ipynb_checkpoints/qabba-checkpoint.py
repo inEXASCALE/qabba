@@ -1,6 +1,7 @@
 # This software is to simulate quantized ABBA
 
 import os
+import itertools
 import warnings
 import numpy as np
 import pandas as pd
@@ -27,6 +28,7 @@ except ModuleNotFoundError:
     from .comp import compress
     from .agg import aggregate
     from .inverset import *
+
 
 
 def compute_storage(centers, strings, bits_for_len, bits_for_inc, bits_for_ts=32):
@@ -99,8 +101,8 @@ def symbolsAssign(clusters, alphabet_set=0):
     return string.tolist(), alphabets
 
 
-
-
+        
+        
 @dataclass
 class Model:
     """
@@ -249,6 +251,7 @@ class QABBA(object):
         self.random_state = random_state
         self.bits_for_len = bits_for_len
         self.bits_for_inc = bits_for_inc
+        self.recap_shape = None
         
         
     def fit_transform(self, series, n_jobs=-1, alphabet_set=0, return_start_set=False):
@@ -321,13 +324,29 @@ class QABBA(object):
             centers.
         """
         
-        series = np.asarray(series)
-        if series.dtype !=  'float64':
-            series = np.asarray(series).astype('float64')
-            
+
         len_ts = len(series)
-        n_jobs = self.n_jobs_init(n_jobs, _max=len_ts)            
-        if len(series.shape) == 1:
+        n_jobs = self.n_jobs_init(n_jobs, _max=len_ts)     
+        
+        if isinstance(series, np.ndarray):
+            if len(series.shape) == 1:
+                uni_dim = True
+            else:
+                uni_dim = False
+                
+        elif isinstance(series, list):
+            if not isinstance(series[0], list):
+                uni_dim = True
+            else:
+                uni_dim = False
+        else:
+            raise ValueError('Please enter time series with correct shape.')
+                
+        if uni_dim:
+            series = np.asarray(series)
+            if series.dtype !=  'float64':
+                series = np.asarray(series).astype('float64')
+                
             # Partition time series for parallelism (for n_jobs > 1 or = -1) if it is univarite
             self.return_series_univariate = True # means the series is univariate,
                                        # so the reconstruction can automatically 
@@ -349,6 +368,8 @@ class QABBA(object):
                     warnings.warn("Partition has exceed the maximum length of series.")
                     partition = n_jobs
                     
+            # for i in range(partition,0,-1):
+            #    if len_ts % i == 0:
             interval = int(len_ts / partition)
             series = np.vstack([series[i*interval : (i+1)*interval] for i in range(partition)])
                     
@@ -358,14 +379,18 @@ class QABBA(object):
                 print("Init {} processors.".format(n_jobs))
         else:
             self.return_series_univariate = False
-        
+            if isinstance(series, np.ndarray):
+                if len(series.shape) > 2:
+                    self.recap_shape = series.shape
+                    series = series.reshape(-1, int(np.prod(self.recap_shape[1:])))
+            
         pieces = list()
         self.start_set = list()
         
         p = Pool(n_jobs)
 
         self.start_set = [ts[0] for ts in series]
-        pieces = [p.apply_async(compress, args=(fillna(ts, self.fillna), self.tol, self.max_len)) for ts in series]
+        pieces = [p.apply_async(compress, args=(fillna(np.asarray(ts).astype(np.double), self.fillna), self.tol, self.max_len)) for ts in series]
 
         p.close()
         p.join()
@@ -501,8 +526,23 @@ class QABBA(object):
         if series.dtype !=  'float64':
             series = series.astype('float64')
             
+        if isinstance(series, np.ndarray):
+            if len(series.shape) == 1:
+                uni_dim = True
+            else:
+                uni_dim = False
+                
+        elif isinstance(series, list):
+            if not isinstance(series[0], list):
+                uni_dim = True
+            else:
+                uni_dim = False
+        else:
+            raise ValueError('Please enter time series with correct shape.')
+            
         n_jobs = self.n_jobs_init(n_jobs)
-        if len(series.shape) == 1: 
+        
+        if uni_dim: 
             # Partition time series for parallelism (for n_jobs > 1 or = -1) if it is univarite
             self.return_series_univariate = True # means the series is univariate,
                                        # so the reconstruction can automatically 
@@ -513,6 +553,15 @@ class QABBA(object):
                     series = np.vstack([series[i*interval : (i+1)*interval] for i in range(n_jobs)])
         else:
             self.return_series_univariate = False
+            
+            if self.recap_shape is not None:
+                if not isinstance(series, np.ndarray):
+                    series = np.asarray(series)
+
+                    if series.shape != self.recap_shape:
+                        raise ValueError('Please enter the input with consistent dimensions.')
+
+                series = series.reshape(-1, int(np.prod(self.recap_shape[1:])))
             
         string_sequences = list()
         start_set = list()
@@ -558,6 +607,33 @@ class QABBA(object):
 
         
         
+    def recast_shape(self, reconstruct_list):
+        """Reshape the multiarray to the same shape of the input, the shape might be expanded or squeezed."""
+        size_list = [len(i) for i in reconstruct_list]
+        fixed_len = self.recap_shape[1] * self.recap_shape[2]
+        
+        if fixed_len > np.max(size_list):
+            warnings.warn('The reconstructed shape has been expanded.', ShapeWarning)
+            
+        elif fixed_len < np.max(size_list):
+            warnings.warn('The reconstructed shape has been squeezed.', ShapeWarning)
+        
+        if self.recap_shape is not None:
+            reconstruct_list.append(fixed_len * [-1])
+            pad_token = [np.mean(i) for i in reconstruct_list]
+            padded = zip(*zip_longest(*reconstruct_list, fillvalue=pad_token))
+
+            padded = list(padded)
+            padded = np.asarray(padded)
+            padded = padded[:self.recap_shape[0], :fixed_len].reshape(self.recap_shape)
+            
+        else:
+            print(f"""Please ensure your fitted series (not this function input) is numpy.ndarray type with dimensions > 2.""")
+            
+        return padded
+    
+    
+    
     def inverse_transform(self, string_sequences, start_set=None, n_jobs=1):
         """
         Reconstruct the symbolic sequences to numerical sequences.
@@ -1361,3 +1437,29 @@ def fillna(series, method='ffill'):
     return series
 
 
+
+class ShapeWarning(EncodingWarning):
+    pass
+
+
+def zip_longest(*iterables, fillvalue=None):
+    # zip_longest('ABCD', 'xy', fillvalue='-') → Ax By C- D-
+
+    iterators = list(map(iter, iterables))
+    num_active = len(iterators)
+    if not num_active:
+        return
+
+    while True:
+        values = []
+        for i, iterator in enumerate(iterators):
+            try:
+                value = next(iterator)
+            except StopIteration:
+                num_active -= 1
+                if not num_active:
+                    return
+                iterators[i] = itertools.repeat(fillvalue[i])
+                value = fillvalue[i]
+            values.append(value)
+        yield tuple(values)
