@@ -1,2 +1,2 @@
-__version__='0.0.4'
+__version__='0.1.2'
 from .qabba import QABBA, fastQABBA, fastQABBA_len, fastQABBA_inc

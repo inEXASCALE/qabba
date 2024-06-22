@@ -2,7 +2,7 @@ import logging
 import setuptools
 from distutils.errors import CCompilerError, DistutilsExecError, DistutilsPlatformError
 from setuptools import Extension
-
+import warnings
 try:
     from Cython.Distutils import build_ext
 except ImportError as e:
@@ -26,7 +26,7 @@ class CustomBuildExtCommand(build_ext):
         
 setup_args = {'name':"qabba",
         'packages':setuptools.find_packages(),
-        'version':"0.0.4",
+        'version':"0.1.2",
         'cmdclass': {'build_ext': CustomBuildExtCommand},
         'install_requires':["numpy>=1.3.0", "scipy>=0.7.0", 
                             "requests", "pandas", 
@@ -35,8 +35,9 @@ setup_args = {'name':"qabba",
                             "matplotlib"],
         'packages':{"qabba"},
         'package_data':{"qabba": ["qabba"]},
+        # 'include_dirs':[numpy.get_include()],
         'long_description':long_description,
-        'author':"noname",
+        'author':"NA",
         'author_email':"noname@email.com",
         'classifiers':["Intended Audience :: Science/Research",
                     "Intended Audience :: Developers",
@@ -53,6 +54,7 @@ setup_args = {'name':"qabba",
         'license':'BSD 3-Clause'
     }
 
+
 compmem_j = Extension('qabba.compmem',
                         sources=['qabba/compmem.pyx'])
 
@@ -64,7 +66,6 @@ inversetc_j = Extension('qabba.inversetc',
 
 
 try:
-    from Cython.Build import cythonize
     setuptools.setup(
         setup_requires=["cython", "numpy>=1.17.3"],
         # ext_modules=cythonize(["fABBA/extmod/*.pyx", 
@@ -82,5 +83,5 @@ except ext_errors as ext_reason:
     log.warn("The C extension could not be compiled.")
     if 'build_ext' in setup_args['cmdclass']:
         del setup_args['cmdclass']['build_ext']
-    setuptools.setup(setup_requires=["numpy>=1.17.3", "cython>=0.27"], **setup_args)
+    setuptools.setup(setup_requires=["numpy>=1.17.3"], **setup_args)
     
