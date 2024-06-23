@@ -26,7 +26,7 @@ class CustomBuildExtCommand(build_ext):
         
 setup_args = {'name':"qabba",
         'packages':setuptools.find_packages(),
-        'version':"0.1.2",
+        'version':"0.1.3",
         'cmdclass': {'build_ext': CustomBuildExtCommand},
         'install_requires':["numpy>=1.3.0", "scipy>=0.7.0", 
                             "requests", "pandas", 

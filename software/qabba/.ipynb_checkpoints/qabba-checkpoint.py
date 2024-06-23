@@ -711,7 +711,12 @@ class QABBA(object):
 
         """
         
-        splabels = np.argmin(np.linalg.norm(self.parameters.centers  - piece, ord=2, axis=1))
+        
+        centers = self.parameters.centers.copy()
+        centers[:, 0] = self.quantizer_len.dequant(centers[:, 0])
+        centers[:, 1] = self.quantizer_inc.dequant(centers[:, 1])
+        
+        splabels = np.argmin(np.linalg.norm(centers  - piece, ord=2, axis=1))
         return self.parameters.alphabets[splabels]
     
     
