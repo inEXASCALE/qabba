@@ -16,6 +16,7 @@ logging.basicConfig()
 log = logging.getLogger(__file__)
 ext_errors = (CCompilerError, DistutilsExecError, DistutilsPlatformError, IOError, SystemExit)
 
+
 class CustomBuildExtCommand(build_ext):
     """build_ext command for use when numpy headers are needed."""
 
@@ -24,9 +25,10 @@ class CustomBuildExtCommand(build_ext):
         self.include_dirs.append(numpy.get_include())
         build_ext.run(self)
         
+        
 setup_args = {'name':"qabba",
         'packages':setuptools.find_packages(),
-        'version':"0.1.3",
+        'version':"0.1.4",
         'cmdclass': {'build_ext': CustomBuildExtCommand},
         'install_requires':["numpy>=1.3.0", "scipy>=0.7.0", 
                             "requests", "pandas", 
@@ -85,3 +87,5 @@ except ext_errors as ext_reason:
         del setup_args['cmdclass']['build_ext']
     setuptools.setup(setup_requires=["numpy>=1.17.3"], **setup_args)
     
+
+        

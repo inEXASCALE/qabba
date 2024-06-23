@@ -618,6 +618,8 @@ class QABBA(object):
         elif fixed_len < np.max(size_list):
             warnings.warn('The reconstructed shape has been squeezed.', ShapeWarning)
         
+        org_size = len(reconstruct_list)
+        
         if self.recap_shape is not None:
             reconstruct_list.append(fixed_len * [-1])
             pad_token = [np.mean(i) for i in reconstruct_list]
@@ -625,7 +627,7 @@ class QABBA(object):
 
             padded = list(padded)
             padded = np.asarray(padded)
-            padded = padded[:self.recap_shape[0], :fixed_len].reshape(self.recap_shape)
+            padded = padded[:org_size, :fixed_len].reshape(-1, *self.recap_shape[1:])
             
         else:
             print(f"""Please ensure your fitted series (not this function input) is numpy.ndarray type with dimensions > 2.""")
