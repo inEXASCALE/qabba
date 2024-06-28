@@ -1,5 +1,3 @@
-# This software is to simulate quantized ABBA
-
 import os
 import warnings
 import numpy as np
@@ -26,12 +24,6 @@ except ModuleNotFoundError:
     from .agg import aggregate
     from .inverset import *
 
-
-def compute_storage(centers, strings, bits_for_len, bits_for_inc, bits_for_ts=32):
-    """Compute storage need for representation"""
-    size_centers = centers.shape[0]*bits_for_len + centers.shape[1]*bits_for_inc
-    size_strings = 8 * len(strings)
-    return size_centers + size_strings + bits_for_ts
 
 
 def symbolsAssign(clusters, alphabet_set=0):
@@ -108,7 +100,7 @@ class Model:
     
     """ dictionary """
     alphabets: np.ndarray # labels -> symbols,  symbols -> labels
-
+    
     
 
 def general_compress(pabba, data, adjust=True, n_jobs=-1):
@@ -154,9 +146,9 @@ def general_decompress(pabba, strings, int_type=True, n_jobs=-1):
 
 
 
-class QABBA(object):
+class JABBA(object):
     """
-    Simulate QABBA in parallel
+    Parallel version of ABBA with fast implementation.
     
     Parameters
     ----------        
@@ -217,10 +209,9 @@ class QABBA(object):
     """
     
     def __init__(self, tol=0.2, init='agg', k=2, r=0.5, alpha=None, 
-                        sorting="norm", scl=1, max_iter=2,
-                        bits_for_len=8, bits_for_inc=16,
+                        sorting="norm", scl=1, max_iter=2, 
                         partition_rate=None, partition=None,
-                        max_len=np.inf, verbose=1, random_state=42,
+                        max_len=np.inf, verbose=1, random_state=2022,
                         fillna='ffill', auto_digitize=False):
         
         self.tol = tol
@@ -245,8 +236,7 @@ class QABBA(object):
         self.eta = None # The coefficient applied to auto digitization. Needless to specify.
         self.fillna = fillna
         self.random_state = random_state
-        self.bits_for_len = bits_for_len
-        self.bits_for_inc = bits_for_inc
+        
         
         
     def fit_transform(self, series, n_jobs=-1, alphabet_set=0, return_start_set=False):
@@ -347,6 +337,8 @@ class QABBA(object):
                     warnings.warn("Partition has exceed the maximum length of series.")
                     partition = n_jobs
                     
+            # for i in range(partition,0,-1):
+            #    if len_ts % i == 0:
             interval = int(len_ts / partition)
             series = np.vstack([series[i*interval : (i+1)*interval] for i in range(partition)])
                     
@@ -442,7 +434,7 @@ class QABBA(object):
                 kmeans = sampledKMeansInter(n_clusters=self.k, 
                                             r=self.r, 
                                             init='k-means++', 
-                                            max_iter=self.max_iter, 
+                                            max_iter=self.max_iter,  
                                             random_state=self.random_state)
                 kmeans.sampled_fit(pieces)
                 
@@ -464,11 +456,6 @@ class QABBA(object):
         if self.scl == 0:
             centers[:, 0] = one_D_centers(len_pieces, labels, self.k)
 
-        self.quantizer_len = quantizer(bits=self.bits_for_len)
-        self.quantizer_inc = quantizer(bits=self.bits_for_inc)
-        centers[:, 0] = self.quantizer_len.quantize(centers[:, 0])
-        centers[:, 1] = self.quantizer_inc.quantize(centers[:, 1])
-        
         string, alphabets = symbolsAssign(labels, alphabet_set)
         self.parameters = Model(centers, alphabets)
         
@@ -586,18 +573,14 @@ class QABBA(object):
                 raise ValueError('Please input valid start_set.')
         
         inverse_sequences = list()
-        
-        centers = np.zeros(self.parameters.centers.shape)
-        centers[:, 0] = self.quantizer_len.dequantize(self.parameters.centers[:, 0])
-        centers[:, 1] = self.quantizer_inc.dequantize(self.parameters.centers[:, 1])
-        
+
         if n_jobs != 1 and count != 1:
             p = Pool(n_jobs)
             for i in range(count):
                 inverse_sequences.append(
                     p.apply_async(inv_transform,
                                   args=(string_sequences[i],
-                                        centers,
+                                        self.parameters.centers,
                                         self.parameters.alphabets.tolist(),
                                         start_set[i])
                                  )
@@ -608,7 +591,7 @@ class QABBA(object):
         else:
             for i in range(count):
                 inverse_sequence = inv_transform(string_sequences[i], 
-                                                 centers,
+                                                 self.parameters.centers,
                                                  self.parameters.alphabets.tolist(),
                                                  start_set[i]
                                                 )
@@ -852,24 +835,18 @@ class QABBA(object):
 
 
 
-class fastQABBA(object): # simulate single time series
-    def __init__(self, tol=0.2, k=2, r=1, scl=1, init='agg', 
-                 sorting="norm", alpha=0.5,
-                 bits_for_len=8, bits_for_inc=16, random_state=2022, n_jobs=1, 
+class fastABBA(object):
+    def __init__(self, tol=0.2, k=2, r=0.5, scl=1, random_state=2022, n_jobs=1,
                  alphabet_set=0, max_len=np.inf, max_iter=2, verbose=True):
-        
         self.tol = tol
         self.k = k
         self.r = r
         self.scl = scl
         self.max_len = max_len
-        self.sorting, self.alpha = sorting, alpha
-        self.bits_for_len = bits_for_len
-        self.bits_for_inc = bits_for_inc
         self.random_state = random_state
         self.verbose = verbose
         self.alphabet_set = alphabet_set
-        self.init = init
+        self.kmeans = None
         self.max_iter = max_iter
         self.n_jobs = n_jobs
 
@@ -880,20 +857,17 @@ class fastQABBA(object): # simulate single time series
 
 
     def predict(self, series):
-        if self.init == 'kmeans':
-            if self.kmeans is not None:
-                series = np.array(series)
-                pieces = self._compress(series)
-                pieces = np.array(pieces)[:,:2]
-                pieces = pieces * np.array([self.scl, 1]) / self._std
+        if self.kmeans is not None:
+            series = np.array(series)
+            pieces = self._compress(series)
+            pieces = np.array(pieces)[:,:2]
+            pieces = pieces * np.array([self.scl, 1]) / self._std
+            
+            with parallel_backend('threading', n_jobs=self.n_jobs):
+                labels = self.kmeans.predict(pieces)
+                
+            return self.parameters.alphabets[labels]
 
-                with parallel_backend('threading', n_jobs=self.n_jobs):
-                    labels = self.kmeans.predict(pieces)
-
-                return self.parameters.alphabets[labels]
-        
-        elif self.init == 'agg':
-            raise ValueError("Underdeveloped.")
         else:
             raise ValueError("Please train the model first.")
 
@@ -920,44 +894,25 @@ class fastQABBA(object): # simulate single time series
         
         pieces =  pieces * np.array([self.scl, 1]) / self._std
         
-        if self.init == 'kmeans':
-            with parallel_backend('threading', n_jobs=self.n_jobs):
-                self.kmeans = sampledKMeansInter(n_clusters=self.k, 
-                                                r=self.r, 
-                                                init='k-means++', 
-                                                max_iter=self.max_iter, 
-                                                random_state=self.random_state)
+        with parallel_backend('threading', n_jobs=self.n_jobs):
+            self.kmeans = sampledKMeansInter(n_clusters=self.k, 
+                                            r=self.r, 
+                                            init='k-means++', 
+                                            max_iter=self.max_iter,
+                                            random_state=self.random_state)
 
-                labels = self.kmeans.sampled_fit_predict(pieces[:,:2])
-
-            if self.scl != 0:
-                centers = self.kmeans.cluster_centers_ * self._std / np.array([self.scl, 1])
-            else:
-                centers = self.kmeans.cluster_centers_ * self._std
-                centers[:, 0] = one_D_centers(len_pieces, labels, self.k)
-        
+            labels = self.kmeans.sampled_fit_predict(pieces[:,:2])
+            
+        if self.scl != 0:
+            centers = self.kmeans.cluster_centers_ * self._std / np.array([self.scl, 1])
         else:
-            labels, splist = aggregate(pieces, self.sorting, self.alpha)
-            splist = np.array(splist)
-            
-            if self.scl != 0:
-                centers = splist[:,3:5] * self._std / np.array([self.scl, 1])
-            else:
-                centers = splist[:,3:5] * self._std
-                centers[:, 0] = one_D_centers(len_pieces, labels, self.k)
-            
-            self.k = centers.shape[0]
-            
-        self.quantizer_len = quantizer(bits=self.bits_for_len)
-        self.quantizer_inc = quantizer(bits=self.bits_for_inc)
-        centers[:, 0] = self.quantizer_len.quantize(centers[:, 0])
-        centers[:, 1] = self.quantizer_inc.quantize(centers[:, 1])
-        
+            centers = self.kmeans.cluster_centers_ * self._std
+            centers[:, 0] = one_D_centers(len_pieces, labels, self.k)
+
         self.string_, alphabets = symbolsAssign(labels, self.alphabet_set)
         self.parameters = Model(centers, alphabets)
         
         self.num_grp = self.parameters.centers.shape[0]
-        
         if self.verbose:
             print("Generate {} symbols".format(self.num_grp))
         
@@ -965,246 +920,7 @@ class fastQABBA(object): # simulate single time series
 
 
     def inverse_transform(self, strings, start):
-        centers = np.zeros(self.parameters.centers.shape)
-        centers[:, 0] = self.quantizer_len.dequantize(self.parameters.centers[:, 0])
-        centers[:, 1] = self.quantizer_inc.dequantize(self.parameters.centers[:, 1])
-        
-        return inv_transform(strings, centers, self.parameters.alphabets.tolist(), start)
-
-
-class fastQABBA_len(object): # simulate single time series
-    def __init__(self, tol=0.2, k=2, r=1, scl=1, init='agg', 
-                 sorting="norm", alpha=0.5,
-                 bits_for_len=8, bits_for_inc=16, random_state=2022, n_jobs=1, 
-                 alphabet_set=0, max_len=np.inf, max_iter=2, verbose=True):
-        
-        self.tol = tol
-        self.k = k
-        self.r = r
-        self.scl = scl
-        self.max_len = max_len
-        self.sorting, self.alpha = sorting, alpha
-        self.bits_for_len = bits_for_len
-        self.bits_for_inc = bits_for_inc
-        self.random_state = random_state
-        self.verbose = verbose
-        self.alphabet_set = alphabet_set
-        self.init = init
-        self.max_iter = max_iter
-        self.n_jobs = n_jobs
-
-    def transform(self, series):
-        series = np.array(series)
-        pieces = self._compress(series)
-        return self._digitize(pieces)
-
-
-    def predict(self, series):
-        if self.init == 'kmeans':
-            if self.kmeans is not None:
-                series = np.array(series)
-                pieces = self._compress(series)
-                pieces = np.array(pieces)[:,:2]
-                pieces = pieces * np.array([self.scl, 1]) / self._std
-
-                with parallel_backend('threading', n_jobs=self.n_jobs):
-                    labels = self.kmeans.predict(pieces)
-
-                return self.parameters.alphabets[labels]
-        
-        elif self.init == 'agg':
-            raise ValueError("Underdeveloped.")
-        else:
-            raise ValueError("Please train the model first.")
-
-
-    def _compress(self, series):
-        return compress(series, tol=self.tol, max_len=self.max_len)
-
-
-    def _digitize(self, pieces):
-        pieces = np.array(pieces)[:,:2]
-        max_k = np.unique(pieces, axis=0).shape[0]
-        if self.k > max_k:
-            self.k = max_k
-            warnings.warn("k is larger than the unique pieces size, so k reduces to unique pieces size.")
-            
-        self._std = np.std(pieces, axis=0)
-        if self._std[0] == 0: # prevent zero-division
-            self._std[0] = 1
-        if self._std[1] == 0:
-            self._std[1] = 1
-
-        if self.scl == 0:
-            len_pieces = pieces[:, 0]
-        
-        pieces =  pieces * np.array([self.scl, 1]) / self._std
-        
-        if self.init == 'kmeans':
-            with parallel_backend('threading', n_jobs=self.n_jobs):
-                self.kmeans = sampledKMeansInter(n_clusters=self.k, 
-                                                r=self.r, 
-                                                init='k-means++', 
-                                                max_iter=self.max_iter, 
-                                                random_state=self.random_state)
-
-                labels = self.kmeans.sampled_fit_predict(pieces[:,:2])
-
-            if self.scl != 0:
-                centers = self.kmeans.cluster_centers_ * self._std / np.array([self.scl, 1])
-            else:
-                centers = self.kmeans.cluster_centers_ * self._std
-                centers[:, 0] = one_D_centers(len_pieces, labels, self.k)
-        
-        else:
-            labels, splist = aggregate(pieces, self.sorting, self.alpha)
-            splist = np.array(splist)
-            
-            if self.scl != 0:
-                centers = splist[:,3:5] * self._std / np.array([self.scl, 1])
-            else:
-                centers = splist[:,3:5] * self._std
-                centers[:, 0] = one_D_centers(len_pieces, labels, self.k)
-            
-            self.k = centers.shape[0]
-            
-        self.quantizer_len = quantizer(bits=self.bits_for_len)
-        centers[:, 0] = self.quantizer_len.quantize(centers[:, 0])
-        
-        self.string_, alphabets = symbolsAssign(labels, self.alphabet_set)
-        self.parameters = Model(centers, alphabets)
-        
-        self.num_grp = self.parameters.centers.shape[0]
-        
-        if self.verbose:
-            print("Generate {} symbols".format(self.num_grp))
-        
-        return self.string_
-
-
-    def inverse_transform(self, strings, start):
-        centers = np.zeros(self.parameters.centers.shape)
-        centers[:, 0] = self.quantizer_len.dequantize(self.parameters.centers[:, 0])
-        centers[:, 1] = np.float32(self.parameters.centers[:, 1])
-        return inv_transform(strings, centers, self.parameters.alphabets.tolist(), start)
-
-
-class fastQABBA_inc(object): # simulate single time series
-    def __init__(self, tol=0.2, k=2, r=1, scl=1, init='agg', 
-                 sorting="norm", alpha=0.5,
-                 bits_for_len=8, bits_for_inc=16, random_state=2022, n_jobs=1, 
-                 alphabet_set=0, max_len=np.inf, max_iter=2, verbose=True):
-        
-        self.tol = tol
-        self.k = k
-        self.r = r
-        self.scl = scl
-        self.max_len = max_len
-        self.sorting, self.alpha = sorting, alpha
-        self.bits_for_len = bits_for_len
-        self.bits_for_inc = bits_for_inc
-        self.random_state = random_state
-        self.verbose = verbose
-        self.alphabet_set = alphabet_set
-        self.init = init
-        self.max_iter = max_iter
-        self.n_jobs = n_jobs
-
-    def transform(self, series):
-        series = np.array(series)
-        pieces = self._compress(series)
-        return self._digitize(pieces)
-
-
-    def predict(self, series):
-        if self.init == 'kmeans':
-            if self.kmeans is not None:
-                series = np.array(series)
-                pieces = self._compress(series)
-                pieces = np.array(pieces)[:,:2]
-                pieces = pieces * np.array([self.scl, 1]) / self._std
-
-                with parallel_backend('threading', n_jobs=self.n_jobs):
-                    labels = self.kmeans.predict(pieces)
-
-                return self.parameters.alphabets[labels]
-        
-        elif self.init == 'agg':
-            raise ValueError("Underdeveloped.")
-        else:
-            raise ValueError("Please train the model first.")
-
-
-    def _compress(self, series):
-        return compress(series, tol=self.tol, max_len=self.max_len)
-
-
-    def _digitize(self, pieces):
-        pieces = np.array(pieces)[:,:2]
-        max_k = np.unique(pieces, axis=0).shape[0]
-        if self.k > max_k:
-            self.k = max_k
-            warnings.warn("k is larger than the unique pieces size, so k reduces to unique pieces size.")
-            
-        self._std = np.std(pieces, axis=0)
-        if self._std[0] == 0: # prevent zero-division
-            self._std[0] = 1
-        if self._std[1] == 0:
-            self._std[1] = 1
-
-        if self.scl == 0:
-            len_pieces = pieces[:, 0]
-        
-        pieces =  pieces * np.array([self.scl, 1]) / self._std
-        
-        if self.init == 'kmeans':
-            with parallel_backend('threading', n_jobs=self.n_jobs):
-                self.kmeans = sampledKMeansInter(n_clusters=self.k, 
-                                                r=self.r, 
-                                                init='k-means++', 
-                                                max_iter=self.max_iter, 
-                                                random_state=self.random_state)
-
-                labels = self.kmeans.sampled_fit_predict(pieces[:,:2])
-
-            if self.scl != 0:
-                centers = self.kmeans.cluster_centers_ * self._std / np.array([self.scl, 1])
-            else:
-                centers = self.kmeans.cluster_centers_ * self._std
-                centers[:, 0] = one_D_centers(len_pieces, labels, self.k)
-        
-        else:
-            labels, splist = aggregate(pieces, self.sorting, self.alpha)
-            splist = np.array(splist)
-            
-            if self.scl != 0:
-                centers = splist[:,3:5] * self._std / np.array([self.scl, 1])
-            else:
-                centers = splist[:,3:5] * self._std
-                centers[:, 0] = one_D_centers(len_pieces, labels, self.k)
-            
-            self.k = centers.shape[0]
-            
-        self.quantizer_inc = quantizer(bits=self.bits_for_inc)
-        centers[:, 1] = self.quantizer_inc.quantize(centers[:, 1])
-        
-        self.string_, alphabets = symbolsAssign(labels, self.alphabet_set)
-        self.parameters = Model(centers, alphabets)
-        
-        self.num_grp = self.parameters.centers.shape[0]
-        
-        if self.verbose:
-            print("Generate {} symbols".format(self.num_grp))
-        
-        return self.string_
-
-
-    def inverse_transform(self, strings, start):
-        centers = np.zeros(self.parameters.centers.shape)
-        centers[:, 0] = np.float32(self.parameters.centers[:, 0])
-        centers[:, 1] = self.quantizer_inc.dequantize(self.parameters.centers[:, 1])
-        
-        return inv_transform(strings, centers, self.parameters.alphabets.tolist(), start)
+        return inv_transform(strings,  self.parameters.centers, self.parameters.alphabets.tolist(), start)
 
 
 
@@ -1357,43 +1073,3 @@ def fillna(series, method='ffill'):
         series[np.isnan(series)] = 0
 
     return series
-
-
-
-class quantizer():
-    def __init__(self, bits, epsilon=1e-12):
-        self.bits = bits
-        self.alpha_q = -2**(self.bits - 1)
-        self.beta_q = 2**(self.bits - 1) - 1
-        self.epsilon = epsilon 
-        
-    def quantize(self, x):
-        x_min = np.min(x)
-        x_max = np.max(x) + self.epsilon
-        self.s, self.z = self.compute_scaling(x_min, x_max, 
-                                              self.alpha_q, self.beta_q)
-        
-        return self.quantization(x, self.s, self.z)
-        
-        
-    def dequantize(self, x_q):
-        return self.dequantization(x_q, self.s, self.z)
-        
-        
-    def quantization(self, x, s, z):
-        x_q = np.round(1 / s * x + z, decimals=0)
-        x_q = np.clip(x_q, a_min=self.alpha_q, a_max=self.beta_q)
-
-        return x_q
-
-    def dequantization(self, x_q, s, z):
-        x_q = x_q.astype(np.int32)
-        x = s * (x_q - z)
-        x = x.astype(np.float32)
-        return x
-
-    def compute_scaling(self, alpha, beta, alpha_q, beta_q):
-        s = (beta - alpha) / (beta_q - alpha_q)
-        z = int((beta * alpha_q - alpha * beta_q) / (beta - alpha))
-
-        return s, z
