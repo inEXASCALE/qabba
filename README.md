@@ -9,6 +9,12 @@ The software is configured in Linux. Before running the experimental code, pleas
 >>> python setup.py build_ext --inplace
 ```
 
+```Bash
+>>> cd software
+>>> python setup.py build_ext --inplace
+```
+
+
 We use some publicly open-source code to aid in our experiments. Some scripts in the folder `source` are downloaded from https://github.com/nla-group/fABBA and https://github.com/nla-group/ABBA. 
 
 
