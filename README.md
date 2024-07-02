@@ -25,7 +25,7 @@ We use some publicly open-source code to aid in our experiments. Some scripts in
 
 ##### Fine-Tune Mistral-7B on QABBA for Monash Regression Dataset
 The Monash Regression Dataset downloads from [Time Series ExtrinsicRegression (TSER) benchmark](http://tseregression.org/).
-Using a single A100 40G GPU, we present the steps to fine-tune Mistral-7B]() on TSER using [QLoRA](). 
+Using a single A100 40G GPU, we present the steps to fine-tune [Mistral-7B](https://huggingface.co/mistralai/Mistral-7B-v0.1) (or [Llama2-7B](https://huggingface.co/meta-llama/Llama-2-7b-hf))on TSER using [QLoRA](https://github.com/artidoro/qlora). 
 
 ##### Demos
 The data from the UCR Archive and the UEA Archive can be downloaded from https://www.timeseriesclassification.com/index.php; other data are contained in this repo.
