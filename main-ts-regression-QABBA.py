@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import json
-from qabba import QABBA
+from software.qabba import QABBA
 import os
 import pickle
 from sklearn import preprocessing
