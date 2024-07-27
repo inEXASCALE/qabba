@@ -70,9 +70,6 @@ inversetc_j = Extension('qabba.inversetc',
 try:
     setuptools.setup(
         setup_requires=["cython", "numpy>=1.17.3"],
-        # ext_modules=cythonize(["fABBA/extmod/*.pyx", 
-        #                        "fABBA/separate/*.pyx"], 
-        #                      include_path=["fABBA/fABBA"]), 
         **setup_args,
         ext_modules=[compmem_j,
                      aggmem_j,
