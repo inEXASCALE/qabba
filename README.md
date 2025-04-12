@@ -1,5 +1,4 @@
 ## Experimental code for QABBA
-----------------------
 
 ### Setup
 The software is configured in Linux. Before running the experimental code, please ensure Python3 and Cython are properly installed, and run the following commands in Bash:
